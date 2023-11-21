@@ -16,20 +16,21 @@ type Validator interface {
 
 type ValidatorBehavior struct {
 	validator Validator
-	log       *slog.Logger
 }
 
-func NewValidatorBehavior(validator Validator, log *slog.Logger) ValidatorBehavior {
-	return ValidatorBehavior{validator: validator, log: log}
+func NewValidatorBehavior(validator Validator) ValidatorBehavior {
+	return ValidatorBehavior{validator: validator}
 }
 
 func (b ValidatorBehavior) Handle(ctx context.Context, request interface{}, next mediatr.RequestHandlerFunc) (interface{}, error) {
 	typ := reflect.TypeOf(request)
 
-	b.log.InfoContext(ctx, "validating request", "request_type", typ.String())
+	logger := slog.Default().WithGroup("mediatr")
+
+	logger.InfoContext(ctx, "validating request", "request_type", typ.String())
 
 	if err := b.validator.ValidateCtx(ctx, request); err != nil {
-		b.log.WarnContext(ctx, "validation error", "request_type", typ.String(), "request", request, "error", err)
+		logger.WarnContext(ctx, "validation error", "request_type", typ.String(), "request", request, "error", err)
 
 		return nil, err
 	}
