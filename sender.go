@@ -7,6 +7,7 @@ import (
 	"reflect"
 
 	"github.com/gowool/mediatr/dict"
+	"github.com/gowool/mediatr/list"
 )
 
 var (
@@ -16,8 +17,9 @@ var (
 )
 
 var (
-	requestHandlers   = dict.NewDict[reflect.Type, any]()
-	pipelineBehaviors = dict.NewDict[reflect.Type, PipelineBehavior]()
+	requestHandlers     = dict.NewDict[reflect.Type, any]()
+	pipelineBehaviors   = list.NewList[PipelineBehavior]()
+	registeredBehaviors = dict.NewDict[reflect.Type, struct{}]()
 )
 
 type Unit struct{}
@@ -40,6 +42,7 @@ func ClearRequestHandlers() {
 
 func ClearPipelineBehaviors() {
 	pipelineBehaviors.Clear()
+	registeredBehaviors.Clear()
 }
 
 func registerRequestHandler[TRequest any](handler interface{}) error {
@@ -67,11 +70,12 @@ func RegisterPipelineBehaviors(behaviors ...PipelineBehavior) error {
 	for _, behavior := range behaviors {
 		typ := reflect.TypeOf(behavior)
 
-		if pipelineBehaviors.Has(typ) {
+		if registeredBehaviors.Has(typ) {
 			return fmt.Errorf("`%s` %w", typ.String(), ErrBehaviorConflict)
 		}
 
-		pipelineBehaviors.Set(typ, behavior)
+		pipelineBehaviors.Add(behavior)
+		registeredBehaviors.Set(typ, struct{}{})
 	}
 	return nil
 }
@@ -99,7 +103,7 @@ func SendR[TRequest any, TResponse any](ctx context.Context, request TRequest) (
 		return handler.Handle(ctx, request)
 	}
 
-	behaviors := pipelineBehaviors.Values()
+	behaviors := pipelineBehaviors.Items()
 	for i := len(behaviors) - 1; i >= 0; i-- {
 		next := handlerFunc
 		pipe := behaviors[i]
